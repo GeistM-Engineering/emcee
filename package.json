@@ -1,0 +1,25 @@
+{
+  "name": "@geistm/emcee",
+  "version": "0.1.0",
+  "type": "module",
+  "description": "GeistM emcee — the publisher edge that knows who is asking. Identifies authentic bots from evidence, answers them in the declared form, and records what each was served.",
+  "exports": {
+    "./identify": "./lib/identify.mjs",
+    "./package.json": "./package.json"
+  },
+  "bin": {
+    "emcee-replay": "bin/replay.mjs"
+  },
+  "scripts": {
+    "replay": "node bin/replay.mjs",
+    "test": "node --test"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/GeistM-Engineering/emcee.git"
+  },
+  "author": "GeistM",
+  "engines": {
+    "node": ">=22"
+  }
+}
