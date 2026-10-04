@@ -4,7 +4,7 @@
 why, is the plan on `epistery.com/@geistm/dev-board` (post #3). This README covers
 the code.
 
-Today the repo holds the identification layer and a replay tool. The edge itself
+Today the repo holds the identification layer, the Stage 0 ingest, and the join reports. The edge itself
 (Node on 80/443 behind an NLB, Certify TLS, Epistery Config, proxy to the fleet)
 builds on top of it.
 
@@ -61,6 +61,22 @@ recorded: by class, by agent (verified / failed / no method), by site, paid land
 (class, in-app, click ids, utm_source, referrer, scout join), AI-answer referrals,
 and what the AI classes were served. `--snapshot` pins the prefix lists so a report
 can be recomputed from the same inputs.
+
+## Joins and ingest — `bin/`
+
+All read gdb as the `research` user (`GDB_URI`); the emcee is a role of research.
+
+| Tool | Does |
+|---|---|
+| `bin/ingest.mjs --day D logs…` | Stage 0 observer: a day's logs → `research.emcee_traffic`, `emcee_paid`, `emcee_runs` (the day is replaced whole). See `docs/research-schema.md`. |
+| `bin/meta-join.mjs --day D logs…` | one-off report: paid landings vs Meta's per-ad figures in `bluefire.stat_v4` |
+| `bin/scout-join.mjs --day D logs…` | one-off report: classic scout clicks followed to the page |
+
+`lib/meta-match.mjs` is the one rule for matching a landing to Meta's records: an id
+on the URL that is one of Meta's ad/adset/campaign ids, else an exact campaign/ad name.
+
+Logs are named `file[@host]`; a log written for one site (journiest's own) carries its
+host that way.
 
 ## Tests
 

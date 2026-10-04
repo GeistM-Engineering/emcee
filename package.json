@@ -2,9 +2,11 @@
   "name": "@geistm/emcee",
   "version": "0.1.0",
   "type": "module",
-  "description": "GeistM emcee — the publisher edge that knows who is asking. Identifies authentic bots from evidence, answers them in the declared form, and records what each was served.",
+  "description": "GeistM emcee \u2014 the publisher edge that knows who is asking. Identifies authentic bots from evidence, answers them in the declared form, and records what each was served.",
   "exports": {
+    ".": "./index.mjs",
     "./identify": "./lib/identify.mjs",
+    "./site-stats": "./lib/site-stats.mjs",
     "./package.json": "./package.json"
   },
   "bin": {
@@ -21,5 +23,9 @@
   "author": "GeistM",
   "engines": {
     "node": ">=22"
-  }
+  },
+  "dependencies": {
+    "mongodb": "^6.21.0"
+  },
+  "main": "index.mjs"
 }
