@@ -8,6 +8,23 @@ Today the repo holds the identification layer, the Stage 0 ingest, and the join 
 (Node on 80/443 behind an NLB, Certify TLS, Epistery Config, proxy to the fleet)
 builds on top of it.
 
+## As a module — `index.mjs`
+
+The host decides where the data lives; the emcee never chooses a database.
+
+```js
+import Emcee from '@geistm/emcee';
+const emcee = new Emcee({ url, database, name });   // a harness: its own [mongo] url
+// const emcee = new Emcee({ data });               // the adnet factory: [research] url, with bluefire for Meta
+
+app.use(emcee.observe());              // live: identify every request, hourly rollups (lib/observe.mjs)
+emcee.attach(router);                  // read: GET /status, GET /site/:domain?days=7
+```
+
+`observe()` never touches a request: it identifies after the response finishes and
+writes deltas every minute (`lib/rollup.mjs`, the same accounting the log ingest uses).
+Unconfigured, it is a pass-through and the read routes answer 503 naming what's missing.
+
 ## Identification — `lib/identify.mjs`
 
 ```js
@@ -35,7 +52,8 @@ A claim is verified by whichever method its operator publishes (`lib/catalog.mjs
 - **fcrdns** — forward-confirmed reverse DNS (Amazon, Petal, Yandex, Baidu, Ahrefs, Semrush; Google/Bing/Apple as a second method)
 
 `verified.ok === false` is a request naming an operator that doesn't stand behind
-the address. It keeps its claimed class; what to do about it is site policy.
+the address. `verified.ok === null` means the check couldn't complete (reverse DNS gave
+no answer): recorded as unresolved, never as an impostor. It keeps its claimed class; what to do about it is site policy.
 
 Operators with nothing published (Anthropic, ByteDance, Exa, Common Crawl…) are
 recorded as claims. The trust factors are GeistM's to choose: other evidence (an

@@ -1,11 +1,13 @@
-# emcee collections in `research`
+# emcee collections
 
-The emcee is a role of research: it writes its observations into the `research`
-database as the `research` user, beside Ember's own state. This is the text to fold
-into pro-research's `SchemaDocumentation.mjs` so Ember can answer traffic questions.
+The emcee writes into whatever database its host configures: on the adnet agency
+that is `research` (as the `research` user, beside Ember's own state); on a harness
+host it is that host's own database. This is the text to fold into pro-research's
+`SchemaDocumentation.mjs` so Ember can answer traffic questions.
 
-Every collection is keyed by `day` (`YYYY-MM-DD`, UTC). A day is replaced whole on each
-ingest, so a day has exactly one answer.
+Two writers, one shape. The log ingest replaces a whole `day` on each run; the live
+observer (harness middleware) adds to the current hour's rows every minute.
+Every row carries `day` (`YYYY-MM-DD`, UTC) and `hour`.
 
 ## `emcee_traffic` — who asked for what
 
@@ -17,7 +19,7 @@ One row per day · hour · site · class · agent · verification · in-app.
 | `site` | `popdust.com`, … — **null for wp-2's share** until its log format matches wp-1's |
 | `class` | `browser` `in-app` `ai-index` `ai-crawler` `ai-agent` `search` `ads` `preview` `seo` `monitor` `tool` `unknown-bot` `none` |
 | `agent`, `operator` | what the User-Agent claims (`GPTBot`/`OpenAI`), null for browsers |
-| `verified` | `ok` — the operator's published ranges/ASN/reverse-DNS stand behind the address; `failed` — they don't (an impostor); `none` — the operator publishes nothing to check; null — no claim |
+| `verified` | `ok` — the operator's published ranges/ASN/reverse-DNS stand behind the address; `failed` — they don't (an impostor); `unresolved` — the check couldn't complete (reverse DNS gave no answer), never counted as an impostor; `none` — the operator publishes nothing to check; null — no claim |
 | `inApp` | `facebook` `instagram` `tiktok` for in-app browsers |
 | `requests`, `cacheHit`, `php`, `rtSeconds`, `status{2xx…}` | counts; `php` = requests that reached PHP (wp-1 only) |
 
@@ -25,7 +27,7 @@ Sum `requests` over rows; never average across rows.
 
 ## `emcee_paid` — what paid traffic arrived
 
-One row per day · site · network · utm_source · utm_campaign · matched Meta ad.
+One row per day · hour · site · network · utm_source · utm_campaign · matched Meta ad.
 
 | Field | Is |
 |---|---|
@@ -52,6 +54,7 @@ A Meta day is the ad account's timezone; an emcee day is UTC — compare over se
 
 ## `emcee_runs` — provenance
 
-One row per day: the files read (lines, unparsed), requests outside the day, the
-verification prefix lists used and when they were fetched, and how many Meta entities
-the day's matching had.
+One row per day. From the ingest: the files read (lines, unparsed), requests outside
+the day, the verification prefix lists used, and how many Meta entities the day's
+matching had. From the live observer: `live: true`, the observing host, and a running
+`totals.requests`.

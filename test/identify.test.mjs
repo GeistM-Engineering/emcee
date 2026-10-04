@@ -10,7 +10,7 @@ const snapshot = {
   'https://openai.com/gptbot.json': { url: 'https://openai.com/gptbot.json', fetchedAt: '2026-10-02T00:00:00Z', prefixes: ['132.196.86.0/24'] },
   AS32934: { url: 'ripe', fetchedAt: '2026-10-02T00:00:00Z', prefixes: ['57.141.0.0/24', '2a03:2880::/32'] },
 };
-const rdns = { matches: async (ip) => (ip === '52.70.240.1' ? { ok: true, ptr: 'x.crawl.amazonbot.amazon' } : { ok: false, ptr: null }) };
+const rdns = { matches: async (ip) => (ip === '52.70.240.1' ? { ok: true, ptr: 'x.crawl.amazonbot.amazon' } : ip === '52.70.240.9' ? { ok: null, ptr: null } : { ok: false, ptr: null }) };
 const identify = new Identify({ catalog: AGENTS, sources: new Sources(snapshot), rdns });
 
 const GPTBOT = 'Mozilla/5.0 AppleWebKit/537.36 (KHTML, like Gecko; compatible; GPTBot/1.4; +https://openai.com/gptbot)';
@@ -73,4 +73,12 @@ test('both fleet log formats parse', () => {
   const wp2 = parse('45.148.10.15 - - [02/Oct/2026:00:00:02 +0000] "POST / HTTP/1.1" 404 11457 "-" "Mozilla/5.0 (Windows NT 10.0)" cache=-');
   assert.equal(wp2.host, null);
   assert.equal(wp2.status, 404);
+});
+
+test('a reverse-DNS timeout is unresolved, never an impostor', async () => {
+  const ua = 'Mozilla/5.0 AppleWebKit/537.36 (KHTML, like Gecko; compatible; Amazonbot/0.1; +https://developer.amazon.com/support/amazonbot)';
+  const f = await identify.evidence({ ip: '52.70.240.9', ua });
+  assert.equal(f.verified.ok, null);
+  const { arrivalOf } = await import('../lib/identify.mjs');
+  assert.notEqual(arrivalOf(f), 'false-claim');
 });

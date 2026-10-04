@@ -13,7 +13,7 @@
 //
 //   emcee_traffic  one row per day · hour · site · class · agent · verification · in-app
 //                  {requests, cacheHit, php, rtSeconds, status{2xx…}}
-//   emcee_paid     one row per day · site · network · utm_source · utm_campaign · matched Meta ad
+//   emcee_paid     one row per day · hour · site · network · utm_source · utm_campaign · matched Meta ad
 //                  {requests, clicks, arrivals{human-shaped, preview, bot, false-claim}}
 //                  clicks = distinct click ids (fbclid / tblci / gclid), else address+agent
 //   emcee_runs     one row per day: what was read, from where, against which prefix lists
@@ -27,10 +27,10 @@
 import fs from 'node:fs';
 import zlib from 'node:zlib';
 import readline from 'node:readline';
-import crypto from 'node:crypto';
 import { PassThrough } from 'node:stream';
 import { MongoClient } from 'mongodb';
-import Identify, { arrivalOf } from '../lib/identify.mjs';
+import Identify from '../lib/identify.mjs';
+import Rollup from '../lib/rollup.mjs';
 import MetaRecords from '../lib/meta-match.mjs';
 import { parse } from '../lib/nginx-log.mjs';
 
@@ -47,24 +47,13 @@ if (!/^\d{4}-\d{2}-\d{2}$/.test(day || '') || !args.length || !process.env.GDB_U
 
 const MONTHS = { Jan: 0, Feb: 1, Mar: 2, Apr: 3, May: 4, Jun: 5, Jul: 6, Aug: 7, Sep: 8, Oct: 9, Nov: 10, Dec: 11 };
 const stamp = (t) => { const m = /^(\d+)\/(\w+)\/(\d+):(\d+)/.exec(t); return { day: `${m[3]}-${String(MONTHS[m[2]] + 1).padStart(2, '0')}-${m[1].padStart(2, '0')}`, hour: Number(m[4]) }; };
-const idOf = (o) => crypto.createHash('sha1').update(JSON.stringify(o)).digest('hex').slice(0, 24);
-const query = (url) => { const at = url.indexOf('?'); return new URLSearchParams(at < 0 ? '' : url.slice(at + 1)); };
-
-function networkOf(q, facts, match) {
-  if (q.get('fbclid') || match) return 'META';
-  if (q.get('tblci') || /taboola|^tb\b/i.test(facts.paid.utm.source || '')) return 'TABOOLA';
-  if (q.get('gclid')) return 'GOOGLE';
-  if (/meta|facebook|^fb$|instagram/i.test(facts.paid.utm.source || '')) return 'META';
-  return 'OTHER';
-}
 
 const client = await new MongoClient(process.env.GDB_URI).connect();
 const meta = await MetaRecords.load(client.db('bluefire'), day);
 const snapshot = snapshotPath && fs.existsSync(snapshotPath) ? JSON.parse(fs.readFileSync(snapshotPath, 'utf8')) : undefined;
 const identify = await Identify.create({ snapshot });
 
-const traffic = new Map();
-const paid = new Map();
+const rollup = new Rollup({ meta });
 const files = [];
 let outsideDay = 0;
 
@@ -78,35 +67,7 @@ for (const spec of args) {
     await Promise.all(batch.map(async (rec) => {
       const at = stamp(rec.time);
       if (at.day !== day) { outsideDay++; return; }
-      const facts = await identify.evidence(rec);
-      const verified = facts.claim ? (facts.verified ? (facts.verified.ok ? 'ok' : 'failed') : 'none') : null;
-
-      const tk = { day, hour: at.hour, site: rec.host, class: facts.class, agent: facts.claim?.agent || null, verified, inApp: facts.inApp };
-      const t = traffic.get(idOf(tk)) || traffic.set(idOf(tk), { ...tk, operator: facts.claim?.operator || null, requests: 0, cacheHit: 0, php: 0, rtSeconds: 0, status: {} }).get(idOf(tk));
-      t.requests++;
-      if (rec.cache === 'HIT') t.cacheHit++;
-      if (rec.php) t.php++;
-      if (rec.rt) t.rtSeconds += rec.rt;
-      const sc = `${String(rec.status)[0]}xx`;
-      t.status[sc] = (t.status[sc] || 0) + 1;
-
-      if (!facts.paid) return;
-      const q = query(rec.url);
-      const hit = meta.match(facts.paid.platformIds, Object.values(facts.paid.utm).filter(Boolean));
-      const e = hit?.entity;
-      const pk = {
-        day, site: rec.host, network: networkOf(q, facts, hit),
-        utmSource: facts.paid.utm.source, utmCampaign: facts.paid.utm.campaign,
-        metaAccount: e?.account || null, metaCampaignsetId: e?.campaignsetId || null,
-        metaAdId: e?.level === 'ad' ? e.id : null, metaLevel: e?.level || null, matchedBy: hit?.by || null,
-      };
-      const p = paid.get(idOf(pk)) || paid.set(idOf(pk), { ...pk, requests: 0, arrivals: {}, _clicks: new Set(), _clicksBy: {} }).get(idOf(pk));
-      const arrival = arrivalOf(facts);
-      const click = q.get('fbclid') || q.get('tblci') || q.get('gclid') || `${rec.ip}|${rec.ua}`;
-      p.requests++;
-      p.arrivals[arrival] = (p.arrivals[arrival] || 0) + 1;
-      p._clicks.add(click);
-      (p._clicksBy[arrival] ||= new Set()).add(click);
+      rollup.add(rec, await identify.evidence(rec), at);
     }));
     batch = [];
   };
@@ -119,10 +80,7 @@ for (const spec of args) {
   await flush();
 }
 
-const trafficRows = [...traffic.entries()].map(([_id, r]) => ({ _id, ...r, rtSeconds: Math.round(r.rtSeconds * 1000) / 1000 }));
-const paidRows = [...paid.entries()].map(([_id, { _clicks, _clicksBy, ...r }]) => ({
-  _id, ...r, clicks: _clicks.size, clicksByArrival: Object.fromEntries(Object.entries(_clicksBy).map(([k, s]) => [k, s.size])),
-}));
+const { traffic: trafficRows, paid: paidRows } = rollup.rows();
 const run = {
   _id: day, day, at: new Date(), files, outsideDay,
   sources: Object.fromEntries(Object.entries(identify.sources.snapshot).map(([k, s]) => [k, { fetchedAt: s.fetchedAt, prefixes: s.prefixes.length }])),
