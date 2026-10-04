@@ -4,17 +4,18 @@
 //   emcee.attach(router);                     // e.g. the factory, at /emcee
 //
 // The emcee is a role of research: it reads with the `research` identity, from the
-// harness config's [research] section:
+// harness config's [research] section — the same `url` shape as the agency's own
+// [db] url and research.blackfire.pro's [mongo] url, holding the research identity:
 //
 //   [research]
-//   mongoHost=mongodb://research:…@oak.gdb.blackfire.pro,birch…/?authSource=admin&replicaSet=gdb
+//   url=mongodb://research:…@oak.gdb.blackfire.pro,birch…/?authSource=admin&replicaSet=gdb
 //
 // Routes (public for now; controls on this data come later):
 //   GET /status                 version, readiness, the days ingested
 //   GET /site/:domain?days=7    one site's traffic and paid arrivals (lib/site-stats.mjs)
 //
-// Without [research] mongoHost every route answers 503 and says so — it never guesses
-// a connection.
+// Without [research] url every route answers 503 and says so — it never guesses a
+// connection.
 
 import { readFileSync } from 'node:fs';
 import { MongoClient } from 'mongodb';
@@ -60,9 +61,9 @@ export default class Emcee {
       }
     });
 
-    const uri = this.config.data?.research?.mongoHost;
+    const uri = this.config.data?.research?.url;
     if (!uri) {
-      this.failure = 'no [research] mongoHost in config';
+      this.failure = 'no [research] url in config';
       console.error('[emcee]', this.failure);
       return;
     }
