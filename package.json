@@ -27,5 +27,6 @@
   "dependencies": {
     "mongodb": "^6.21.0"
   },
-  "main": "index.mjs"
+  "main": "index.mjs",
+  "license": "MIT"
 }
