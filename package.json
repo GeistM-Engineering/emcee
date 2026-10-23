@@ -6,6 +6,7 @@
   "exports": {
     ".": "./index.mjs",
     "./identify": "./lib/identify.mjs",
+    "./front": "./lib/front.mjs",
     "./site-stats": "./lib/site-stats.mjs",
     "./package.json": "./package.json"
   },

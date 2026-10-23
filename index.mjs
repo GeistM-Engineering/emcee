@@ -14,6 +14,8 @@
 //                              rollups in the host's database (lib/observe.mjs)
 //   emcee.attach(router)       read: GET /status, GET /site/:domain?days=7
 //                              (public for now; controls on this data come later)
+//   app.use(emcee.front({upstream}))  the front door: stream every request to the
+//                              upstream that serves the sites (lib/front.mjs)
 //
 // Unconfigured, observe() is a pass-through and the read routes answer 503 naming
 // what's missing — it never guesses a connection.
@@ -23,6 +25,7 @@ import { readFileSync } from 'node:fs';
 import { MongoClient } from 'mongodb';
 import Identify from './lib/identify.mjs';
 import Observer from './lib/observe.mjs';
+import front from './lib/front.mjs';
 import { siteStats, normalizeDomain } from './lib/site-stats.mjs';
 
 const VERSION = JSON.parse(readFileSync(new URL('./package.json', import.meta.url), 'utf8')).version;
@@ -80,6 +83,10 @@ export default class Emcee {
     this.refresh.unref?.();
     this.observer = new Observer({ identify: () => (this.ready ? identify : null), sink: (b) => this._write(b), flushMs });
     return this.observer.middleware();
+  }
+
+  front(options) {
+    return front(options);
   }
 
   async _write({ traffic, paid, requests, day }) {
